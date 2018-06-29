@@ -12,8 +12,6 @@
 #define dataSize 1012
 #define headerLength 1
 
-#define N 5120
-
 #include "Packet.h"
 
 #include <limits.h>
@@ -25,6 +23,9 @@
 #define SHOWOUTPUT 1 //if = 1 show normal outputs, if = 0 no output
 #define SHOWCHECKSUMS 0 //if = 1 show checksums, if = 0 no checksums
 
+int windowSize = 1024;
+int ssthresh = 15360;
+int MSS = 1024;
 
 int findIndex(short ackNum, int fakeSendBase, struct Packet * packetOut,int numberOfFullPackets)
 {
@@ -42,13 +43,13 @@ int findIndex(short ackNum, int fakeSendBase, struct Packet * packetOut,int numb
 
 int sendBasePlusN(sendBase)
 {
-	if(sendBase + N - 30720 > 0)
+	if(sendBase + windowSize - 30720 > 0)
 	{
-		return sendBase + N - 30720;
+		return sendBase + windowSize - 30720;
 	}
 	else
 	{
-		return sendBase + N;
+		return sendBase + windowSize;
 	}
 }
 
@@ -275,7 +276,7 @@ int main(int argc, char **argv)
 				strcpy(ackSynPacket.data,"File Does Not Exist");
 				ackSynPacket.length = 12 + 4*19;
 				ackSynPacket.checksum = checkSumCalculator(ackSynPacket,strlen ("File Does Not Exist"));
-				if(SHOWOUTPUT == 1) printf("Sending packet %d 5120 SYN\n", 0); //TODO: (maybe change) hard coded 5120 since this packet never receives ack in our implementation
+				if(SHOWOUTPUT == 1) printf("Sending packet %d 5120 15360 SYN\n", 0); //TODO: (maybe change) hard coded 5120 since this packet never receives ack in our implementation
 				if(SHOWCHECKSUMS == 1) printf("Checksum for packet %d is 0x%x\n",ackSynPacket.seqNum, ackSynPacket.checksum);
 				currentSeqNum = ackSynPacket.length;
 				if (sendto(fd, &ackSynPacket, sizeof(ackSynPacket), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
@@ -291,7 +292,7 @@ int main(int argc, char **argv)
 				receivedFileName = 1;
 				sendBase = ackSynPacket.length;
 				currentSeqNum = ackSynPacket.length;
-				if(SHOWOUTPUT == 1) printf("Sending packet %d 5120 SYN\n", 0); //TODO: (maybe change)hard coded 5120 since this packet never receives ack in our implementatio
+				if(SHOWOUTPUT == 1) printf("Sending packet %d 5120 15360 SYN\n", 0); //TODO: (maybe change)hard coded 5120 since this packet never receives ack in our implementatio
 				if(SHOWCHECKSUMS == 1) printf("Checksum for packet %d is 0x%x\n",ackSynPacket.seqNum, ackSynPacket.checksum);
 				if (sendto(fd, &ackSynPacket, sizeof(ackSynPacket), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
 				{
@@ -448,7 +449,7 @@ int main(int argc, char **argv)
 			}
 			
 			int j;
-			for(j = fakeSendBase; j < fakeSendBase + N && i < numberOfFullPackets + 1; j++)
+			for(j = fakeSendBase; j < fakeSendBase + windowSize && i < numberOfFullPackets + 1; j++)
 			{
 				gettimeofday(&timeNow, NULL);
 				
@@ -508,7 +509,7 @@ int main(int argc, char **argv)
 			{
 				if(tempPacketIn.syn != '0') //Retransmit SYN packet in case if client did not receive
 				{
-					if(SHOWOUTPUT == 1) printf("Sending packet %d 5120 SYN Retransmit\n", 0);
+					if(SHOWOUTPUT == 1) printf("Sending packet %d 5120 15360 SYN Retransmit\n", 0);
 					if(SHOWCHECKSUMS == 1) printf("Checksum for packet %d is 0x%x Retransmission\n",ackSynPacket.seqNum, ackSynPacket.checksum);
 					if (sendto(fd, &ackSynPacket, sizeof(ackSynPacket), 0, (struct sockaddr *)&remaddr, addrlen) < 0) //resend ack for getting the file name
 					{
@@ -527,7 +528,8 @@ int main(int argc, char **argv)
 						{
 							if(SHOWOUTPUT == 1) printf("Receiving packet %d\n",tempPacketIn.ackNum);
 							ackList[index] = 1;
-							
+							//TODO: slow start
+							windowSize = windowSize + MSS;
 							/*
 							//Moving sendBase up
 							if(sendBase + packetOut[index].length - 30720 > 0)
@@ -664,7 +666,6 @@ int main(int argc, char **argv)
 						}
 					}
 				}
-				printf("\n1\n");
 			}
 			return 0;
 		}
